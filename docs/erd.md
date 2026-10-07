@@ -1,4 +1,4 @@
-# Phần B: Thiết kế cơ sở dữ liệu (ERD)
+# Thiết kế cơ sở dữ liệu (ERD)
 
 ## 1. Quyết định thiết kế
 
