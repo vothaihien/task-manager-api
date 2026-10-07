@@ -33,7 +33,21 @@ trường. Không dùng `PUT` trong các luồng MVP.
 ## 2. Danh sách endpoint
 
 `{project_id}`, `{task_id}` và `{user_id}` là định danh của tài nguyên. Các
-endpoint trừ đăng ký và đăng nhập yêu cầu access token hợp lệ.
+endpoint trừ health check, đăng ký và đăng nhập yêu cầu access token hợp lệ.
+
+### Health check
+
+| Method | Đường dẫn        | Thành công |
+| ------ | ---------------- | ---------: |
+| `GET`  | `/api/v1/health` |   `200 OK` |
+
+Health check không yêu cầu đăng nhập và trả trạng thái hoạt động của ứng dụng:
+
+```json
+{
+  "status": "ok"
+}
+```
 
 ### Xác thực và hồ sơ
 
@@ -65,9 +79,19 @@ viên.
 | `PATCH`  | `/api/v1/projects/{project_id}/members/{user_id}` | US-07 |         `200 OK` |
 | `DELETE` | `/api/v1/projects/{project_id}/members/{user_id}` | US-07 | `204 No Content` |
 
-`POST` thêm thành viên bằng tài khoản đã đăng ký. Owner có thể gán vai trò
-`manager` hoặc `member`; Manager chỉ có thể thêm Member. `PATCH` vai trò chỉ
-dành cho Owner. Xoá thành viên thu hồi quyền truy cập ngay.
+`POST` thêm thành viên bằng `email` của tài khoản đã đăng ký; không nhận
+`user_id` trong body. Thiếu `email` hoặc request sai định dạng trả
+`400 Bad Request`. MVP chấp nhận rủi ro dò email đã đăng ký qua kết quả thêm
+thành viên; cần xem xét giảm thiểu rủi ro này trước khi mở API rộng rãi.
+Owner có thể gán vai trò `manager` hoặc `member`; Manager chỉ có thể thêm
+Member. `PATCH` vai trò chỉ dành cho Owner và không được phép gán `owner` trong
+MVP; người tạo dự án giữ vai trò `owner` trong `project_members` trong suốt
+vòng đời dự án. Xoá thành viên thu hồi quyền truy cập ngay.
+
+`created_by_id` trong `projects` là người tạo ban đầu và bất biến; vai trò hiện
+tại của người đó được lấy từ dòng `project_members` đang hoạt động. Điều này
+cho phép lưu lịch sử người tạo mà vẫn hỗ trợ quyền và ràng buộc `owner` hiện
+hành.
 
 ### Công việc (task)
 
@@ -95,6 +119,16 @@ Request đăng ký:
 }
 ```
 
+Response đăng ký `201 Created`:
+
+```json
+{
+  "id": "8e03978e-40d5-43e8-bc93-6894a57f9324",
+  "email": "member@example.com",
+  "created_at": "2026-10-07T08:30:00Z"
+}
+```
+
 Response đăng ký `201 Created` trả thông tin tài khoản, không bao giờ trả mật
 khẩu hoặc password hash. Đăng nhập nhận cùng hai trường và trả access token có
 thời hạn 60 phút. Email hoặc mật khẩu không đúng trả cùng một lỗi `401` để
@@ -109,18 +143,64 @@ không tiết lộ email có tồn tại hay không.
 - Với task, Owner/Manager có thể cập nhật thông tin được phép, bao gồm người
   được giao, mức ưu tiên và ngày dự kiến. Member chỉ có thể cập nhật `description`
   và `status` của task được giao cho mình.
+- Khi thành viên rời dự án, task không tự động bị bỏ giao. Dữ liệu lịch sử giữ
+  `assigned_to_user_id` để không mất trace; API trả task có thể để `assigned_to_user`
+  bằng `null` hoặc không cấp dữ liệu do người này không còn là thành viên của dự án.
 - `DELETE` thành công trả `204 No Content`, không kèm JSON response. Xoá dự án
   và task là soft delete; thành viên bị xoá mất quyền truy cập ngay.
+- `projects` có trường `name` bắt buộc và `description` tùy chọn để đáp ứng US-03.
+  `POST /projects` chấp nhận `description` và `PATCH /projects/{project_id}` cho phép
+  cập nhật `name` và `description` trong phạm vi quyền.
 
-Các trường cụ thể của tài nguyên tuân theo yêu cầu nghiệp vụ: project có tên;
-task có tên, mô tả, trạng thái, mức ưu tiên, ngày bắt đầu, ngày kết thúc dự
-kiến và người được giao. Tên trường và enum phải nhất quán giữa request,
-response và tài liệu schema của ứng dụng.
+Các trường cụ thể của tài nguyên tuân theo yêu cầu nghiệp vụ: project có tên và
+mô tả tùy chọn; task có tên, mô tả, trạng thái, mức ưu tiên, ngày bắt đầu, ngày
+kết thúc dự kiến và người được giao. Tên trường và enum phải nhất quán giữa
+request, response và tài liệu schema của ứng dụng.
+
+Ví dụ tạo task bằng `POST /api/v1/projects/{project_id}/tasks`:
+
+```json
+{
+  "name": "Chuẩn bị bản phát hành",
+  "description": "Hoàn tất kiểm thử hồi quy",
+  "status": "pending",
+  "priority": "high",
+  "start_date": "2026-10-08",
+  "due_date": "2026-10-15",
+  "assigned_to_user_id": "2b3a1c4d-5e6f-4789-8abc-1234567890ab"
+}
+```
+
+Response `201 Created`:
+
+```json
+{
+  "id": "6d3a71bc-9472-4a30-a340-dbc54ac8b38a",
+  "project_id": "6f5f0d86-44f9-42eb-a2f5-7e0f06eb5678",
+  "name": "Chuẩn bị bản phát hành",
+  "description": "Hoàn tất kiểm thử hồi quy",
+  "status": "pending",
+  "priority": "high",
+  "start_date": "2026-10-08",
+  "due_date": "2026-10-15",
+  "assigned_to_user_id": "2b3a1c4d-5e6f-4789-8abc-1234567890ab",
+  "created_at": "2026-10-07T08:30:00Z",
+  "updated_at": "2026-10-07T08:30:00Z"
+}
+```
+
+`status` nhận một trong `pending`, `in_progress`, `completed`, `cancelled`;
+`priority` nhận một trong `low`, `medium`, `high`. Khi không gửi các trường
+này, lần lượt dùng mặc định `pending` và `medium`. `assigned_to_user_id` có
+thể là `null` nếu task chưa được giao; người được giao phải là thành viên đang
+hoạt động của dự án.
 
 ### Phân trang và lọc
 
 Mọi endpoint danh sách hỗ trợ query `page` và `page_size`, mặc định lần lượt là
 `1` và `20`. `page` bắt đầu từ `1`; giá trị không hợp lệ trả `422`.
+Mọi danh sách mặc định sắp xếp `created_at` giảm dần, sau đó `id` giảm dần để
+thứ tự ổn định giữa các trang.
 
 Danh sách dự án, thành viên và task trả cùng cấu trúc:
 
