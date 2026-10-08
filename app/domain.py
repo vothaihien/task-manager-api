@@ -12,13 +12,17 @@ class TaskStatus(str, Enum):
 class AppError(Exception):
     """Base exception class for application errors."""
 
-    pass
+    code: str = "INTERNAL_ERROR"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class ValidationError(AppError):
     """Raised when a domain validation rule fails."""
 
-    pass
+    code: str = "VALIDATION_ERROR"
 
 
 ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
