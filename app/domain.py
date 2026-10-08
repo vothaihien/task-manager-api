@@ -12,13 +12,17 @@ class TaskStatus(str, Enum):
 class AppError(Exception):
     """Base exception class for application errors."""
 
-    pass
+    code: str = "INTERNAL_ERROR"
+
+    def __init__(self, message: str) -> None:
+        super().__init__(message)
+        self.message = message
 
 
 class ValidationError(AppError):
     """Raised when a domain validation rule fails."""
 
-    pass
+    code: str = "VALIDATION_ERROR"
 
 
 ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
@@ -45,7 +49,7 @@ def check_transition(current: TaskStatus, new: TaskStatus) -> None:
     allowed = ALLOWED_TRANSITIONS.get(current, set())
     if new not in allowed:
         raise ValidationError(
-            f"Invalid status transition from '{current.value}' to '{new.value}'"
+            f"Không thể chuyển trạng thái từ '{current.value}' sang '{new.value}'"
         )
 
 
@@ -58,5 +62,5 @@ def check_dates(start: date | None, due: date | None) -> None:
     if start is not None and due is not None:
         if due < start:
             raise ValidationError(
-                f"Due date ({due}) cannot be before start date ({start})"
+                f"Ngày kết thúc ({due}) không được trước ngày bắt đầu ({start})"
             )
