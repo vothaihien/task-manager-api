@@ -67,6 +67,10 @@ erDiagram
     PROJECT_MEMBERS o|--o{ TASKS : "duoc giao trong cung du an"
 ```
 
+Các bảng dùng naming convention chung của SQLAlchemy để tên PK, FK, unique
+constraint và index được dự đoán ổn định cho migration. Constraint/index có tên
+khai báo tường minh, như các tên bên dưới, giữ nguyên tên đó.
+
 `assigned_to_user_id` có thể `NULL` nếu task chưa được giao. Quan hệ cuối trong sơ đồ được bảo đảm bằng khóa ngoại ghép `(project_id, assigned_to_user_id)` tới `(project_id, user_id)` của `PROJECT_MEMBERS`.
 
 ## 3. Bảng và ràng buộc
@@ -76,7 +80,7 @@ erDiagram
 | Cột             | Kiểu           | Ràng buộc / ý nghĩa                                     |
 | --------------- | -------------- | ------------------------------------------------------- |
 | `id`            | `UUID`         | PK, mặc định `gen_random_uuid()`                        |
-| `email`         | `VARCHAR(320)` | NOT NULL, UNIQUE; lưu email đã chuẩn hoá chữ thường     |
+| `email`         | `VARCHAR(320)` | NOT NULL, UNIQUE; CHECK email chữ thường                |
 | `password_hash` | `TEXT`         | NOT NULL; chỉ lưu hash mật khẩu, không lưu mật khẩu gốc |
 | `created_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                 |
 | `updated_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                 |
@@ -93,6 +97,10 @@ erDiagram
 | `created_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                       |
 | `updated_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                       |
 | `deleted_at`    | `TIMESTAMPTZ`  | NULL nếu dự án chưa bị xoá mềm                                 |
+
+`projects.name` và `tasks.name` có `CHECK (btrim(name) <> '')`; API vẫn nên
+trim tên trước khi lưu. Email được bảo vệ bằng `CHECK (email = lower(email))`;
+API vẫn nên chuẩn hoá email trước khi lưu.
 
 `created_by_id` là người tạo ban đầu và không đổi; vai trò hiện tại của người đó trong dự án được xác định từ `project_members` đang hoạt động. Người tạo dự án được thêm vào `project_members` với vai trò `owner` trong cùng giao dịch. Trong MVP, API `PATCH` vai trò không được phép gán `owner`; không có luồng "chuyển quyền sở hữu".
 
