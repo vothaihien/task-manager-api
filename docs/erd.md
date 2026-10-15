@@ -18,6 +18,7 @@ ERD và ràng buộc dưới đây dùng cú pháp/kiểu dữ liệu tương th
 erDiagram
     USERS {
         UUID id PK
+        VARCHAR full_name
         VARCHAR email UK
         VARCHAR password_hash
         TIMESTAMPTZ created_at
@@ -77,26 +78,27 @@ khai báo tường minh, như các tên bên dưới, giữ nguyên tên đó.
 
 ### `users`
 
-| Cột             | Kiểu           | Ràng buộc / ý nghĩa                                     |
-| --------------- | -------------- | ------------------------------------------------------- |
-| `id`            | `UUID`         | PK, mặc định `gen_random_uuid()`                        |
-| `email`         | `VARCHAR(320)` | NOT NULL, UNIQUE; CHECK email chữ thường                |
-| `password_hash` | `TEXT`         | NOT NULL; chỉ lưu hash mật khẩu, không lưu mật khẩu gốc |
-| `created_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                 |
-| `updated_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                 |
+| Cột             | Kiểu           | Ràng buộc / ý nghĩa                                               |
+| --------------- | -------------- | ----------------------------------------------------------------- |
+| `id`            | `UUID`         | PK, mặc định `gen_random_uuid()`                                  |
+| `full_name`     | `VARCHAR(200)` | NULL                                                              |
+| `email`         | `VARCHAR(320)` | NOT NULL, UNIQUE; CHECK email chữ thường                          |
+| `password_hash` | `TEXT`         | NOT NULL; chỉ lưu hash mật khẩu, không lưu mật khẩu gốc           |
+| `created_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                          |
+| `updated_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                          |
 | `deleted_at`    | `TIMESTAMPTZ`  | NULL nếu tài khoản chưa bị xoá mềm; trường dự phòng cho tương lai |
 
 ### `projects`
 
-| Cột             | Kiểu           | Ràng buộc / ý nghĩa                                            |
-| --------------- | -------------- | -------------------------------------------------------------- |
-| `id`            | `UUID`         | PK, mặc định `gen_random_uuid()`                               |
-| `created_by_id` | `UUID`         | NOT NULL, FK → `users.id`; người tạo dự án                     |
-| `name`          | `VARCHAR(200)` | NOT NULL, không rỗng sau khi trim                              |
-| `description`   | `TEXT`         | NULL; mô tả dự án, hỗ trợ thêm ngữ cảnh cho project           |
-| `created_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                       |
-| `updated_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                                       |
-| `deleted_at`    | `TIMESTAMPTZ`  | NULL nếu dự án chưa bị xoá mềm                                 |
+| Cột             | Kiểu           | Ràng buộc / ý nghĩa                                 |
+| --------------- | -------------- | --------------------------------------------------- |
+| `id`            | `UUID`         | PK, mặc định `gen_random_uuid()`                    |
+| `created_by_id` | `UUID`         | NOT NULL, FK → `users.id`; người tạo dự án          |
+| `name`          | `VARCHAR(200)` | NOT NULL, không rỗng sau khi trim                   |
+| `description`   | `TEXT`         | NULL; mô tả dự án, hỗ trợ thêm ngữ cảnh cho project |
+| `created_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                            |
+| `updated_at`    | `TIMESTAMPTZ`  | NOT NULL DEFAULT `now()`                            |
+| `deleted_at`    | `TIMESTAMPTZ`  | NULL nếu dự án chưa bị xoá mềm                      |
 
 `projects.name` và `tasks.name` có `CHECK (btrim(name) <> '')`; API vẫn nên
 trim tên trước khi lưu. Email được bảo vệ bằng `CHECK (email = lower(email))`;
@@ -114,8 +116,8 @@ API vẫn nên chuẩn hoá email trước khi lưu.
 | `project_id` | `UUID`        | NOT NULL, FK → `projects.id`                               |
 | `user_id`    | `UUID`        | NOT NULL, FK → `users.id`                                  |
 | `role`       | `VARCHAR(20)` | NOT NULL, `CHECK (role IN ('owner', 'manager', 'member'))` |
-| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()`                                  |
-| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()`                                  |
+| `created_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()`                                   |
+| `updated_at` | `TIMESTAMPTZ` | NOT NULL DEFAULT `now()`                                   |
 | `deleted_at` | `TIMESTAMPTZ` | NULL nếu membership còn hoạt động                          |
 
 - `UNIQUE (project_id, user_id)` ngăn một người có nhiều membership cho cùng dự án. Khi thêm lại thành viên đã bị xoá mềm, kích hoạt lại membership cũ thay vì tạo dòng trùng.
