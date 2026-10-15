@@ -11,7 +11,7 @@ import uuid
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-from sqlalchemy import select, text
+from sqlalchemy import inspect, select, text
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, configure_mappers
 
@@ -48,7 +48,16 @@ def test_db_connection() -> None:
         result = connection.execute(text("SELECT 1")).scalar_one()
         if result != 1:
             raise AssertionError(f"Unexpected SELECT 1 result: {result}")
-    Base.metadata.create_all(bind=engine)
+    # Base.metadata.create_all(bind=engine)
+    expected_tables = set(Base.metadata.tables)
+    existing_tables = set(inspect(engine).get_table_names())
+    missing_tables = expected_tables - existing_tables
+    if missing_tables:
+        names = ", ".join(sorted(missing_tables))
+        raise RuntimeError(
+            f"Database is missing required table(s): {names} "
+            "Apply migrations first with: alembic upgrade head"
+        )
     print("  [PASS] Database connection successful; all tables created")
 
 
@@ -125,9 +134,7 @@ def create_valid_data() -> ScenarioData:
 
     with SessionLocal() as session:
         stored_user = session.scalar(select(User).where(User.id == user_id))
-        stored_project = session.scalar(
-            select(Project).where(Project.id == project_id)
-        )
+        stored_project = session.scalar(select(Project).where(Project.id == project_id))
         stored_membership = session.scalar(
             select(ProjectMember).where(ProjectMember.id == member_id)
         )
@@ -258,9 +265,7 @@ def test_constraints(data: ScenarioData) -> None:
     def blank_task_name(session: Session) -> None:
         session.add(Task(project_id=project_id, name="   "))
 
-    expect_violation(
-        "duplicate user email", duplicate_email, "uq_users_email"
-    )
+    expect_violation("duplicate user email", duplicate_email, "uq_users_email")
     expect_violation(
         "invalid project membership role",
         invalid_role,
@@ -271,9 +276,7 @@ def test_constraints(data: ScenarioData) -> None:
         duplicate_active_owner,
         "uq_project_members_active_owner",
     )
-    expect_violation(
-        "due date before start date", invalid_task_dates, "ck_tasks_dates"
-    )
+    expect_violation("due date before start date", invalid_task_dates, "ck_tasks_dates")
     expect_violation(
         "assign task to nonmember",
         nonmember_assignee,
