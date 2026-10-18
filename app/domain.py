@@ -13,16 +13,34 @@ class AppError(Exception):
     """Base exception class for application errors."""
 
     code: str = "INTERNAL_ERROR"
+    status_code = 500
 
-    def __init__(self, message: str) -> None:
+    def __init__(
+        self, message: str, *, code: str | None = None, status_code: int | None = None
+    ) -> None:
         super().__init__(message)
         self.message = message
+        if code is not None:
+            self.code = code
+        if status_code is not None:
+            self.status_code = status_code
 
 
 class ValidationError(AppError):
     """Raised when a domain validation rule fails."""
 
     code: str = "VALIDATION_ERROR"
+    status_code = 422
+
+
+class AuthenticationError(AppError):
+    code = "UNAUTHENTICATED"
+    status_code = 401
+
+
+class ConflictError(AppError):
+    code = "CONFLICT"
+    status_code = 409
 
 
 ALLOWED_TRANSITIONS: dict[TaskStatus, set[TaskStatus]] = {
