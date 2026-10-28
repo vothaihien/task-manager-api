@@ -35,7 +35,7 @@ class UserRead(BaseModel):
     id: UUID
     email: EmailStr
     full_name: str | None = None
-    create_at: datetime
+    created_at: datetime
 
 
 class LoginRequest(BaseModel):
@@ -46,7 +46,7 @@ class LoginRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     token_type: str = "bearer"
-    expire_in: int
+    expires_in: int
 
 
 class ProjectCreate(BaseModel):

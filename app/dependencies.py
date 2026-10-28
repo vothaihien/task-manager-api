@@ -2,6 +2,7 @@ from collections.abc import Iterator
 
 from fastapi import Depends
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import SessionLocal
@@ -27,7 +28,9 @@ def get_current_user(
     user_id = decode_access_token(credentials.credentials)
     if user_id is None:
         raise AuthenticationError("Invalid or expired token", code="UNAUTHENTICATED")
-    user = db.query(User).filter(User.id == user_id, User.deleted_at.is_(None)).first()
+    user = db.scalar(
+        select(User).where(User.id == user_id, User.deleted_at.is_(None))
+    )
     if user is None:
         raise AuthenticationError(
             "User not found or has been deleted", code="UNAUTHENTICATED"
