@@ -1,13 +1,10 @@
-from datetime import datetime, timedelta, timezone
-from uuid import UUID
-
 from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import SessionLocal
-from app.dependencies import get_db, get_current_user
+from app.dependencies import get_db
 from app.domain import AuthenticationError, ConflictError
 from app.models import User
 from app.schemas import LoginRequest, TokenResponse, UserRead, UserCreate
@@ -15,8 +12,11 @@ from app.security import hash_password, verify_password, create_access_token
 
 router = APIRouter(prefix="/api/v1/auth", tags=["auth"])
 
+# Nếu không tìm thấy user thì vẫn verify một hash giả
+_DUMMY_HASH = hash_password("this_is_a_dummy_password_for_timing_attack_prevention")
 
-@router.post("register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
+
+@router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
 def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserRead:
     email = payload.email.strip().lower()
     hashed = hash_password(payload.password)
@@ -31,9 +31,18 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserRead:
         db.add(user)
         db.commit()
         db.refresh(user)
-    except IntegrityError:
+    except IntegrityError as error:
         db.rollback()
-        raise ConflictError("Email already exists", code="EMAIL_ALREADY_EXISTS")
+
+        diag = getattr(error.orig, "diag", None)
+        constraint_name = getattr(diag, "constraint_name", None)
+
+        if constraint_name == "uq_users_email":
+            raise ConflictError(
+                "Email already exists",
+                code="EMAIL_ALREADY_EXISTS",
+            ) from None
+        raise
     return UserRead.model_validate(user)
 
 
@@ -41,15 +50,14 @@ def register(payload: UserCreate, db: Session = Depends(get_db)) -> UserRead:
 def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
     email = payload.email.strip().lower()
 
-    user = db.query(User).filter(User.email == email, User.deleted_at.is_(None)).first()
-
-    # Nếu không tìm thấy user thì vẫn verify một hash giả
-    dummy_hash = hash_password("this_is_a_dummy_password_for_timing_attack_prevention")
+    user = db.scalar(
+        select(User).where(User.email == email, User.deleted_at.is_(None))
+    )
 
     if user is not None:
         password_ok = verify_password(payload.password, user.password_hash)
     else:
-        verify_password(payload.password, dummy_hash)
+        verify_password(payload.password, _DUMMY_HASH)
         password_ok = False
 
     if user is None or not password_ok:
@@ -60,5 +68,5 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse
     return TokenResponse(
         access_token=token,
         token_type="bearer",
-        expire_in=settings.access_token_expire_minutes,
+        expires_in=settings.access_token_expire_minutes * 60,
     )
