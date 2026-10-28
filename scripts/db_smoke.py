@@ -191,6 +191,7 @@ def expect_violation(
                 f"{actual_constraint} (expected {expected_constraint})"
             )
             failures += 0 if ok else 1
+
         else:
             session.rollback()
             print(f"  [FAIL] {label}: violation was not rejected")
